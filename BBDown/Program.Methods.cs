@@ -418,7 +418,7 @@ namespace BBDown
                     int pDur = pageDur == 0 ? v.dur : pageDur;
                     var size = v.size > 0 ? v.size : pDur * v.bandwith * 1024 / 8;
                     LogColor($"{index++}. [{v.dfn}] [{v.res}] [{v.codecs}] [{v.fps}] [{v.bandwith} kbps] [~{FormatFileSize(size)}]".Replace("[] ", ""), false);
-                    if (onlyShowInfo) Console.WriteLine(v.baseUrl);
+                    // if (onlyShowInfo) Console.WriteLine(v.baseUrl);
                 }
             }
             if (parsedResult.AudioTracks.Any())
@@ -429,7 +429,7 @@ namespace BBDown
                 {
                     int pDur = pageDur == 0 ? a.dur : pageDur;
                     LogColor($"{index++}. [{a.codecs}] [{a.bandwith} kbps] [~{FormatFileSize(pDur * a.bandwith * 1024 / 8)}]", false);
-                    if (onlyShowInfo) Console.WriteLine(a.baseUrl);
+                   // if (onlyShowInfo) Console.WriteLine(a.baseUrl);
                 }
             }
         }
