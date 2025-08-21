@@ -1,7 +1,9 @@
 [![img](https://img.shields.io/github/stars/nilaoda/BBDown?label=%E7%82%B9%E8%B5%9E)](https://github.com/nilaoda/BBDown)  [![img](https://img.shields.io/github/last-commit/nilaoda/BBDown?label=%E6%9C%80%E8%BF%91%E6%8F%90%E4%BA%A4)](https://github.com/nilaoda/BBDown)  [![img](https://img.shields.io/github/release/nilaoda/BBDown?label=%E6%9C%80%E6%96%B0%E7%89%88%E6%9C%AC)](https://github.com/nilaoda/BBDown/releases)  [![img](https://img.shields.io/github/license/nilaoda/BBDown?label=%E8%AE%B8%E5%8F%AF%E8%AF%81)](https://github.com/nilaoda/BBDown)  [![Build Latest](https://github.com/nilaoda/BBDown/actions/workflows/build_latest.yml/badge.svg)](https://github.com/nilaoda/BBDown/actions/workflows/build_latest.yml)
 
+> 本项目仅供个人学习、研究和非商业性用途。用户在使用本工具时，需自行确保遵守相关法律法规，特别是与版权相关的法律条款。开发者不对因使用本工具而产生的任何版权纠纷或法律责任承担责任。请用户在使用时谨慎，确保其行为合法合规，并仅在有合法授权的情况下使用相关内容。
+
 # BBDown
-一款命令行式哔哩哔哩下载器. Bilibili Downloader.
+一个命令行式哔哩哔哩下载器. Bilibili Downloader.
 
 # 注意
 本软件混流时需要外部程序：
@@ -109,6 +111,7 @@ Options:
   --delay-per-page <delay-per-page>              设置下载合集分P之间的下载间隔时间(单位: 秒, 默认无间隔)
   --host <host>                                  指定BiliPlus host(使用BiliPlus需要access_token, 不需要cookie, 解析服务器能够获取你账号的大部分权限!)
   --ep-host <ep-host>                            指定BiliPlus EP host(用于代理api.bilibili.com/pgc/view/web/season, 大部分解析服务器不支持代理该接口)
+  --tv-host <tv-host>                            自定义tv端接口请求Host(用于代理api.snm0516.aisee.tv)
   --area <area>                                  (hk|tw|th) 使用BiliPlus时必选, 指定BiliPlus area
   --config-file <config-file>                    读取指定的BBDown本地配置文件(默认为: BBDown.config)
   --version                                      Show version information
@@ -299,7 +302,7 @@ BBDown -p ALL "https://www.bilibili.com/bangumi/play/ss33073"
 启动服务器（自定义监听地址和端口）：
 
 ```shell
-BBDown server -l http://0.0.0.0:12450
+BBDown serve -l http://0.0.0.0:12450
 ```
 
 API服务器不支持HTTPS配置，如果有需要请自行使用nginx等反向代理进行配置

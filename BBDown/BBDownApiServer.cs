@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
 using System.Data;
 using System.Linq;
-using System.Net;
+using System.Net.Http;
+using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
@@ -19,8 +19,8 @@ namespace BBDown;
 public class BBDownApiServer
 {
     private WebApplication? app;
-    private List<DownloadTask> runningTasks = [];
-    private List<DownloadTask> finishedTasks = [];
+    private readonly List<DownloadTask> runningTasks = [];
+    private readonly List<DownloadTask> finishedTasks = [];
 
     public void SetUpServer()
     {
@@ -55,12 +55,9 @@ public class BBDownApiServer
             {
                 return Results.NotFound();
             }
-            else
-            {
-                return Results.Json(task, AppJsonSerializerContext.Default.DownloadTask);
-            }
+            return Results.Json(task, AppJsonSerializerContext.Default.DownloadTask);
         });
-        app.MapPost("/add-task", (MyOptionBindingResult<MyOption> bindingResult) =>
+        app.MapPost("/add-task", (MyOptionBindingResult<ServeRequestOptions> bindingResult) =>
         {
             if (!bindingResult.IsValid)
             {
@@ -68,7 +65,26 @@ public class BBDownApiServer
                 return Results.BadRequest("输入有误");
             }
             var req = bindingResult.Result;
-            AddDownloadTaskAsync(req);
+            _ = AddDownloadTaskAsync(req)
+                .ContinueWith(async task => {
+                    // send request to callback webhook
+                    if (string.IsNullOrEmpty(req.CallBackWebHook))
+                    {
+                        return;
+                    }
+                    string callback = req.CallBackWebHook;
+                    var client = new HttpClient();
+                    var downloadTask = await task;
+                    string? jsonContent = JsonSerializer.Serialize(downloadTask, AppJsonSerializerContext.Default.DownloadTask);
+                    try
+                    {
+                        await client.PostAsync(callback, new StringContent(jsonContent, System.Text.Encoding.UTF8, "application/json"));
+                    }
+                    catch (System.Exception e)
+                    {
+                        Logger.LogDebug("回调失败", e.Message);
+                    }
+                 });
             return Results.Ok();
         });
         var finishedRemovalApi = app.MapGroup("remove-finished");
@@ -96,20 +112,24 @@ public class BBDownApiServer
         app.Run(url);
     }
 
-    private async Task AddDownloadTaskAsync(MyOption option)
+    private async Task<DownloadTask> AddDownloadTaskAsync(MyOption option)
     {
         var aid = await BBDownUtil.GetAvIdAsync(option.Url);
-        if (runningTasks.Any(task => task.Aid == aid)) return;
+        DownloadTask? runningTask = runningTasks.FirstOrDefault(task => task.Aid == aid);
+        if (runningTask is not null)
+        {
+            return runningTask;
+        };
         var task = new DownloadTask(aid, option.Url, DateTimeOffset.Now.ToUnixTimeSeconds());
         runningTasks.Add(task);
         try
         {
-            var (encodingPriority, dfnPriority, firstEncoding, downloadDanmaku, input, savePathFormat, lang, aidOri, delay) = Program.SetUpWork(option);
+            var (encodingPriority, dfnPriority, firstEncoding, downloadDanmaku, downloadDanmakuFormats, input, savePathFormat, lang, aidOri, delay) = Program.SetUpWork(option);
             var (fetchedAid, vInfo, apiType) = await Program.GetVideoInfoAsync(option, aidOri, input);
             task.Title = vInfo.Title;
             task.Pic = vInfo.Pic;
             task.VideoPubTime = vInfo.PubTime;
-            await Program.DownloadPagesAsync(option, vInfo, encodingPriority, dfnPriority, firstEncoding, downloadDanmaku,
+            await Program.DownloadPagesAsync(option, vInfo, encodingPriority, dfnPriority, firstEncoding, downloadDanmaku, downloadDanmakuFormats,
                         input, savePathFormat, lang, fetchedAid, delay, apiType, task);
             task.IsSuccessful = true;
         }
@@ -131,6 +151,7 @@ public class BBDownApiServer
         }
         runningTasks.Remove(task);
         finishedTasks.Add(task);
+        return task;
     }
 }
 
@@ -152,6 +173,9 @@ public record DownloadTask(string Aid, string Url, long TaskCreateTime)
     public double TotalDownloadedBytes = 0f;
     [JsonInclude]
     public bool IsSuccessful = false;
+
+    [JsonInclude]
+    public List<string> SavePaths = new();
 };
 public record DownloadTaskCollection(List<DownloadTask> Running, List<DownloadTask> Finished);
 
@@ -159,15 +183,20 @@ record struct MyOptionBindingResult<T>(T? Result, Exception? Exception)
 {
     public bool IsValid => Exception is null;
 
-    public static async ValueTask<MyOptionBindingResult<MyOption>> BindAsync(HttpContext httpContext)
+    public static async ValueTask<MyOptionBindingResult<T>> BindAsync(HttpContext httpContext)
     {
         try
         {
-            var item = await httpContext.Request.ReadFromJsonAsync(SourceGenerationContext.Default.MyOption);
+            JsonTypeInfo? jsonTypeInfo = SourceGenerationContext.Default.GetTypeInfo(typeof(T));
+            if (jsonTypeInfo is null)
+            {
+                return new(default, new InvalidOperationException($"Cannot find TypeInfo for type {typeof(T)}"));
+            }
+            var item = await httpContext.Request.ReadFromJsonAsync(jsonTypeInfo);
 
             if (item is null) return new(default, new NoNullAllowedException());
 
-            return new(item, null);
+            return new((T)item, null);
         }
         catch (Exception ex)
         {
@@ -188,6 +217,7 @@ public partial class AppJsonSerializerContext : JsonSerializerContext
 }
 
 [JsonSerializable(typeof(MyOption))]
+[JsonSerializable(typeof(ServeRequestOptions))]
 internal partial class SourceGenerationContext : JsonSerializerContext
 {
 
